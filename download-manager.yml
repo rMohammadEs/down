@@ -1,0 +1,46 @@
+# فایل: .github/workflows/download-manager.yml
+name: "دانلودر پیشرفته"
+on:
+  workflow_dispatch:
+    inputs:
+      download_url:
+        description: '🔗 لینک فایل مورد نظر'
+        required: true
+        type: string
+        default: 'https://example.com/big-file.zip'
+
+jobs:
+  download-and-split:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 1. دریافت لینک از ورودی
+        run: echo "لینک دریافتی: ${{ github.event.inputs.download_url }}"
+
+      - name: 2. دانلود فایل
+        run: wget --no-check-certificate "${{ github.event.inputs.download_url }}" -O downloaded-file
+
+      - name: 3. نصب 7-Zip
+        run: sudo apt-get update && sudo apt-get install -y p7zip-full
+
+      - name: 4. بررسی حجم و برش فایل
+        run: |
+          FILE_SIZE=$(stat -c%s "downloaded-file")
+          MAX_SIZE=$((90 * 1024 * 1024))  # 90 مگابایت
+
+          if [ $FILE_SIZE -gt $MAX_SIZE ]; then
+            echo "حجم فایل از 90 مگ بیشتر است. شروع فرآیند برش با 7-Zip..."
+            7z a -v90m archive.7z downloaded-file
+            echo "split_done=true" >> $GITHUB_ENV
+          else
+            echo "حجم فایل کمتر از 90 مگ است. نیازی به برش نیست."
+            echo "split_done=false" >> $GITHUB_ENV
+          fi
+
+      - name: 5. آپلود خروجی نهایی (Artifact)
+        uses: actions/upload-artifact@v4
+        with:
+          name: downloaded-content
+          path: |
+            downloaded-file
+            *.7z
+            *.7z.001
